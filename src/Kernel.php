@@ -25,6 +25,49 @@ class Kernel extends BaseKernel
         }
     }
 
+    
+    /**
+     *
+     * Run static analyzer on staged files.
+     *
+     * @param Event $event A Composer event instance.
+     *
+     * @return void
+     */
+    public static function psalm(Event $event)
+    {
+        // Get current root path.
+        $rootPath = dirname($event->getComposer()->getConfig()->get('vendor-dir'));
+        $composerIO = $event->getIO();
+        $output = [];
+        $retVal = 0;
+
+        try {
+            $files = self::getStagedFiles();
+            if (count($files) === 0) {
+                // Don't do any check if php files not changes.
+                return;
+            }
+
+            // Run static analyzer on staged files.
+            $files = str_replace(self::PROJECT_NAME, '', implode(' ', $files));
+            $command = $rootPath . self::PSALM_BIN. ' '. $files;
+            $composerIO->write("<info>{$command}</info>");
+            exec($command, $output, $retVal);
+
+            foreach ($output as $line) {
+                $composerIO->write("  <comment>></comment> {$line}");
+            }
+        } catch (\Exception $e) {
+            $composerIO->writeError('<error>'. $e->getMessage() .'</error>');
+            $retVal = 1;
+        }
+
+        if ($retVal !== 0) {
+            exit($retVal);
+        }
+    }
+    
     protected function configureContainer(ContainerBuilder $container, LoaderInterface $loader): void
     {
         $container->addResource(new FileResource($this->getProjectDir().'/config/bundles.php'));
